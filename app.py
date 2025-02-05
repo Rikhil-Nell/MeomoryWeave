@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime
 from ultralytics import YOLO
 from Filter import filter_detections
-from agent import Bard
+from agent import agent
 
 # Set page title and layout
 st.set_page_config(page_title="Live YOLO Inference", layout="wide")
@@ -66,7 +66,7 @@ if stop_button:
 
         filter_json = filter_detections(json_data)
         
-        response = asyncio.run(Bard.run(user_prompt=filter_json))
+        response = asyncio.run(agent.run(user_prompt=filter_json))
 
         st.write(response.data)
 
