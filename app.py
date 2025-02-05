@@ -126,14 +126,14 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("Start Camera") and not st.session_state.get("webrtc_running"):
         st.session_state.webrtc_running = True
-        st.experimental_rerun()
+
 
 with col2:
     if st.button("Stop Camera") and st.session_state.get("webrtc_running"):
         st.session_state.webrtc_running = False
         if ctx:
             ctx.stop()
-        st.experimental_rerun()
+
 
 # Analysis section
 if st.button("Analyze Results") and st.session_state.results:
