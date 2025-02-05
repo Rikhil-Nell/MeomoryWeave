@@ -8,7 +8,7 @@ load_dotenv()
 
 # Check if GROQ_API_KEY is set
 groq_api_key = st.secrets["GROQ_API_KEY"]
-groq_api_key = os.getenv("GROQ_API_KEY")
+# groq_api_key = os.getenv("GROQ_API_KEY")
 if not groq_api_key:
     raise ValueError("GROQ_API_KEY not found in environment variables. Please add it to your .env file.")
 
