@@ -1,13 +1,19 @@
 import streamlit as st
-import cv2
-import asyncio
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+import av
 from datetime import datetime
 from ultralytics import YOLO
 from Filter import filter_detections
 from agent import agent
+import asyncio
 
 # Set page title and layout
 st.set_page_config(page_title="Live YOLO Inference", layout="wide")
+
+# WebRTC Configuration
+RTC_CONFIGURATION = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
 
 # Load or upload YOLO model
 def load_model(model_path):
@@ -21,7 +27,6 @@ def load_model(model_path):
 # Initialize session state
 if "run" not in st.session_state:
     st.session_state.update({
-        "run": False,
         "results": [],
         "frame_count": 0
     })
@@ -44,49 +49,16 @@ with st.sidebar:
 
 # Main app interface
 st.title("Real-Time Object Detection with YOLO")
-st.caption("Powered by Streamlit, OpenCV, and Ultralytics YOLO")
+st.caption("Powered by Streamlit, WebRTC, and Ultralytics YOLO")
 
-# Start/stop camera buttons
-col1, col2 = st.columns(2)
-with col1:
-    start_button = st.button("Start Camera")
-with col2:
-    stop_button = st.button("Stop Camera")
-
-if start_button:
-    st.session_state["run"] = True
-    st.session_state["results"] = []  # Reset previous results
-    st.session_state["frame_count"] = 0
-
-if stop_button:
-    st.session_state["run"] = False
-    if st.session_state["results"]:
-        # Convert results to JSON string
-        json_data = st.session_state["results"]
-
-        filter_json = filter_detections(json_data)
-        
-        response = asyncio.run(agent.run(user_prompt=filter_json))
-
-        st.write(response.data)
-
-
-# Video display placeholder
-video_placeholder = st.empty()
-
-# Camera capture and processing
-if st.session_state["run"] and model is not None:
-    cap = cv2.VideoCapture(0)
+# Video processing callback
+def video_frame_callback(frame):
+    img = frame.to_ndarray(format="bgr24")  # Convert frame to OpenCV format
     
-    while st.session_state["run"] and cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            st.error("Failed to capture video")
-            break
-        
+    if model is not None:
         # Perform YOLO inference
         results = model.predict(
-            source=frame,
+            source=img,
             conf=confidence_threshold,
             verbose=False
         )
@@ -119,19 +91,42 @@ if st.session_state["run"] and model is not None:
         
         # Render results on frame
         annotated_frame = results[0].plot()
-        annotated_frame_rgb = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
-        video_placeholder.image(annotated_frame_rgb, channels="RGB", use_column_width=True)
+        return av.VideoFrame.from_ndarray(annotated_frame, format="bgr24")
     
-    cap.release()
-    cv2.destroyAllWindows()
-elif model is None and st.session_state["run"]:
-    st.error("Please load a model first!")
+    return frame
+
+# WebRTC streamer
+ctx = webrtc_streamer(
+    key="object-detection",
+    mode=WebRtcMode.SENDRECV,
+    rtc_configuration=RTC_CONFIGURATION,
+    video_frame_callback=video_frame_callback,
+    media_stream_constraints={"video": True, "audio": False},
+    async_processing=True,
+)
+
+# Stop button to process results
+if st.button("Stop and Analyze"):
+    if st.session_state["results"]:
+        # Convert results to JSON string
+        json_data = st.session_state["results"]
+        
+        # Filter detections
+        filter_json = filter_detections(json_data)
+        
+        # Get agent response
+        response = asyncio.run(agent.run(user_prompt=filter_json))
+        
+        # Display response
+        st.write(response.data)
+    else:
+        st.warning("No results to analyze. Start the camera first.")
 
 # Instructions
 st.markdown("### Instructions")
 st.markdown("""
 1. Select model type in the sidebar
 2. Adjust confidence threshold as needed
-3. Click 'Start Camera' to begin inference
-4. Click 'Stop Camera' to end session and download results
+3. Click 'Start' to begin inference
+4. Click 'Stop and Analyze' to process results
 """)
