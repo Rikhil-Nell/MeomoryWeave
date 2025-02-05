@@ -7,7 +7,7 @@ pydantic-ai==0.0.22
 numpy==1.26.4
 
 # Groq API Requirements
-groq==0.1.0  # If using official Groq package
+groq==0.18.0  
 httpx==0.27.0
 websockets==12.0
 
